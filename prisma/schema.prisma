@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kyc              KYC?
+  withdrawals      Withdrawal[]
+  transactions     Transaction[]
+  invoices         Invoice[]
+}
+
+// KYC Verification
+model KYC {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  idDocumentUrl   String
+  addressProofUrl String
+  selfieUrl       String?
+  
+  status          KYCStatus @default(PENDING)
+  rejectionReason String?
+  
+  level           Int       @default(1)
+  verifiedAt      DateTime?
+  rejectedAt      DateTime?
+  
+  adminNotes      String?
+  reviewedBy      String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum KYCStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+// Withdrawal Management
+model Withdrawal {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  amount          Float
+  method          WithdrawalMethod
+  status          WithdrawalStatus @default(PENDING)
+  
+  bankName        String?
+  accountNumber   String?
+  accountHolder   String?
+  
+  walletAddress   String?
+  cryptoType      String?
+  
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  approvedBy      String?
+  rejectionReason String?
+  
+  completedAt     DateTime?
+  transactionHash String?
+  
+  fee             Float     @default(0)
+  netAmount       Float
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum WithdrawalMethod {
+  BANK_TRANSFER
+  CRYPTO
+  WIRE
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+// Transactions & Billing
+model Transaction {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type            TransactionType
+  amount          Float
+  fee             Float     @default(0)
+  netAmount       Float
+  
+  status          TransactionStatus @default(COMPLETED)
+  description     String?
+  
+  invoice         Invoice?
+  
+  createdAt       DateTime  @default(now())
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRADE
+  FEE
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// Invoices
+model Invoice {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  transactionId   String   @unique
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  amount          Float
+  fee             Float
+  netAmount       Float
+  
+  billingFormat   BillingFormat
+  status          InvoiceStatus @default(GENERATED)
+  
+  pdfUrl          String?
+  issuedAt        DateTime  @default(now())
+  dueDate         DateTime?
+  paidAt          DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum BillingFormat {
+  PDF
+  CSV
+  JSON
+}
+
+enum InvoiceStatus {
+  GENERATED
+  SENT
+  VIEWED
+  PAID
+  OVERDUE
+}
+
+// Admin Settings
+model AdminSettings {
+  id              String   @id @default(cuid())
+  
+  kycEnabled      Boolean  @default(true)
+  withdrawalEnabled Boolean @default(true)
+  billingEnabled  Boolean  @default(true)
+  
+  kycRequired     Boolean  @default(true)
+  minWithdrawal   Float    @default(100)
+  maxWithdrawal   Float    @default(100000)
+  
+  withdrawalFee   Float    @default(5)
+  platformFee     Float    @default(1)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
